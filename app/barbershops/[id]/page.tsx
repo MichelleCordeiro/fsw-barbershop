@@ -32,13 +32,13 @@ const BarbershopDetailsPage = async ({ params }: BarbershopDetailsPageProps) => 
     <div>
       <BarbershopInfo barbershop={barbershop} />
 
-      <div className="px-5 flex flex-col gap-4 py-6">
+      <div className='flex flex-col gap-4 px-5 py-6 mb-9'>
         {barbershop.services.map(service => (
           <ServiceItem key={service.id} service={service} />
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 export default BarbershopDetailsPage;
