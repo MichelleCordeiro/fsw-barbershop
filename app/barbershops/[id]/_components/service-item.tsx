@@ -4,17 +4,18 @@ import { Calendar } from '@/app/_components/ui/calendar';
 import { Button } from '@/app/_components/ui/button';
 import { Card, CardContent } from '@/app/_components/ui/card';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/app/_components/ui/sheet';
-import { Barbershop, Service } from '@prisma/client';
+import { Barbershop, Booking, Service } from '@prisma/client';
 import { ptBR } from 'date-fns/locale/pt-BR';
 import { signIn, useSession } from 'next-auth/react';
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { generateDayTimeList } from './_[helpers]/hours';
-import { format, setHours, setMinutes } from 'date-fns';
+import { format, setDate, setHours, setMinutes } from 'date-fns';
 import { saveBooking } from '../_actions/save-booking';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { getDayBookings } from '../_actions/get-day-booking';
 
 interface ServiceItemProps {
   service: Service;
@@ -32,6 +33,20 @@ const ServiceItem = ({ service,barbershop, isAuthenticated }: ServiceItemProps) 
   const [hour, setHour] = useState<string | undefined>()
   const [submitIsLoading, setSubmitIsLoading] = useState(false)
   const [sheetIsOpen, setSheetIsOpen] = useState(false)
+  const [dayBookings, setDayBookings] = useState<Booking[]>([])
+
+  useEffect(() => {
+    if (!date) {
+      return
+    }
+
+    const refreshAvailableHours = async () => {
+      const _dayBookings = await getDayBookings(barbershop.id, date)
+      setDayBookings(_dayBookings)
+    }
+
+    refreshAvailableHours()
+  }, [date, barbershop.id])
   
   const handleBookingClick = () => {
     if (!isAuthenticated) {
@@ -49,8 +64,30 @@ const ServiceItem = ({ service,barbershop, isAuthenticated }: ServiceItemProps) 
   }
 
   const timeList = useMemo(() => {
-    return date ? generateDayTimeList(date) : []
-  }, [date])
+    if (!date) {
+      return []
+    }
+
+    return generateDayTimeList(date).filter(time => {
+      // se houver reserva em dayBooking c mesma hora e min de time não exibir horario
+      // time> "09:30"
+      const timeHour = Number(time.split(':')[0])
+      const timeMinutes = Number(time.split(':')[1])
+
+      const booking = dayBookings.find(booking => {
+        const bookingHour = booking.date.getHours()
+        const bookingMinutes = booking.date.getMinutes()
+
+        return bookingHour === timeHour && bookingMinutes === timeMinutes
+      })
+
+      if (!booking) {
+        return true
+      }
+
+      return false
+    })
+  }, [date, dayBookings])
 
   const handleBookingSubmit = async () => {
     setSubmitIsLoading(true)
