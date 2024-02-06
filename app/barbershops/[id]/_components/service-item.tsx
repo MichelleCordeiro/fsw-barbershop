@@ -6,11 +6,13 @@ import { Card, CardContent } from '@/app/_components/ui/card';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/app/_components/ui/sheet';
 import { Barbershop, Service } from '@prisma/client';
 import { ptBR } from 'date-fns/locale/pt-BR';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { generateDayTimeList } from './_[helpers]/hours';
-import { format } from 'date-fns';
+import { format, setHours, setMinutes } from 'date-fns';
+import { saveBooking } from '../_actions/save-booking';
+import { Loader2 } from 'lucide-react';
 
 interface ServiceItemProps {
   service: Service;
@@ -20,8 +22,11 @@ interface ServiceItemProps {
 }
 
 const ServiceItem = ({ service,barbershop, isAuthenticated }: ServiceItemProps) => {
+  const { data } = useSession();
+  
   const [date, setDate] = useState<Date | undefined>(undefined)
   const [hour, setHour] = useState<string | undefined>()
+  const [submitIsLoading, setSubmitIsLoading] = useState(false)
   
   const handleBookingClick = () => {
     if (!isAuthenticated) {
@@ -38,13 +43,36 @@ const ServiceItem = ({ service,barbershop, isAuthenticated }: ServiceItemProps) 
     setHour(undefined)
   }
 
-    // TODO abrir modal de agendamento
-
   const timeList = useMemo(() => {
     return date ? generateDayTimeList(date) : []
   }, [date])
 
-  
+  const handleBookingSubmit = async () => {
+    setSubmitIsLoading(true)
+
+    try {
+      if (!hour || !date || !data?.user) {
+        return;
+      }
+
+      const dateHour = Number(hour.split(":")[0]);
+      const dateMinutes = Number(hour.split(":")[1]);
+
+      const newDate = setMinutes(setHours(date, dateHour), dateMinutes);
+
+      await saveBooking({
+        serviceId: service.id,
+        barbershopId: barbershop.id,
+        date: newDate,
+        userId: (data.user as any).id,
+      });
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setSubmitIsLoading(false)
+    }
+  }
+
   return (
     <Card>
       <CardContent className='p-3'>
@@ -173,7 +201,12 @@ const ServiceItem = ({ service,barbershop, isAuthenticated }: ServiceItemProps) 
                   </div>
 
                   <SheetFooter className="px-5">
-                    <Button disabled={!hour || !date}>Confirmar reserva</Button>
+                    <Button 
+                      onClick={handleBookingSubmit} 
+                      disabled={!hour || !date || submitIsLoading}>
+                      {submitIsLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Confirmar reserva
+                    </Button>
                   </SheetFooter>
                 </SheetContent>
               </Sheet>
