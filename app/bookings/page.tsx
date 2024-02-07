@@ -4,29 +4,46 @@ import { authOptions } from '../api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
 import { db } from '../_lib/prisma';
 import BookingItem from '../_components/booking-item';
-import { isFuture, isPast } from 'date-fns';
 
 const BookingsPage = async () => {
   // recupera a sessão do usuário (ver se ta logado)
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession(authOptions);
 
   // se não logado rediresiona o home
   if (!session?.user) {
-    return redirect('/')
+    return redirect('/');
   }
 
-  const bookings = await db.booking.findMany({
-    where: {
-      userId: (session.user as any).id
-    },
-    include: {
-      service: true,
-      barbershop: true
-    }
-  })
+  const [confirmedBookings, finishedBookings] = await Promise.all([
+    db.booking.findMany({
+      where: {
+        userId: (session.user as any).id,
+        date: {
+          gte: new Date()
+        }
+      },
+      include: {
+        service: true,
+        barbershop: true
+      }
+    }),
+    db.booking.findMany({
+      where: {
+          userId: (session.user as any).id,
+          date: {
+            lt: new Date()
+          }
+        },
+        include: {
+          service: true,
+          barbershop: true
+        }
+      })
+    ])
 
-  const confirmedBookings = bookings.filter(booking => isFuture(booking.date))
-  const finishedBookings = bookings.filter(booking => isPast(booking.date))
+  // gasta mais memória e mais servidor(fica mais caro) fazendo no banco do q no JS
+  // const confirmedBookings = bookings.filter(booking => isFuture(booking.date))
+  // const finishedBookings = bookings.filter(booking => isPast(booking.date))
 
   return (
     <>
